@@ -7,6 +7,7 @@ rczres = 384;
 
 base_dir = uigetdir();
 
+% Names of file
 vx_name =fullfile(base_dir,'comp_vd_1.dat');
 vy_name =fullfile(base_dir,'comp_vd_2.dat');
 vz_name =fullfile(base_dir,'comp_vd_3.dat');

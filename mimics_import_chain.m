@@ -22,7 +22,7 @@ function varargout = mimics_import_chain(varargin)
 
 % Edit the above text to modify the response to help mimics_import_chain
 
-% Last Modified by GUIDE v2.5 08-Sep-2014 12:42:21
+% Last Modified by GUIDE v2.5 26-Oct-2016 11:12:10
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -67,11 +67,25 @@ set(handles.axes1,'Xtick',[]);
 set(handles.axes1,'Ytick',[]);
 set(handles.axes1,'box','off');
 
-global ANGIO;
+% Setup volume to select
+global extra_volumes;
+voptions = {'PC-Magnitude','PC-MRA'};
+if numel(extra_volumes) > 0 
+    for pos = 1:numel(extra_volumes)
+        voptions{end+1} = extra_volumes{pos}.name;
+    end
+end
+set(handles.volume_select,'String',voptions);
+update_images(handles)
+
+function update_images(handles)
+
+global ANGIO_MIMICS;
+update_mimics_angio(handles);
 
 %%% Display
 axes(handles.x_mip_fig);
-im = squeeze(max(ANGIO,[],1));
+im = squeeze(max(ANGIO_MIMICS,[],1));
 im = im * 195 / max(im(:));
 blank =im;
 map =[ gray(200)];
@@ -81,7 +95,7 @@ set(gca,'YTickLabel','','YTick',[])
 colormap(map);
 
 axes(handles.y_mip_fig);
-im = squeeze(max(ANGIO,[],2));
+im = squeeze(max(ANGIO_MIMICS,[],2));
 im = im * 195 / max(im(:));
 blank =im;
 map =[ gray(200)];
@@ -92,7 +106,7 @@ colormap(map);
 
 
 axes(handles.z_mip_fig);
-im = squeeze(max(ANGIO,[],3));
+im = squeeze(max(ANGIO_MIMICS,[],3));
 im = im * 195 / max(im(:));
 blank =im;
 map =[ gray(200)];
@@ -100,6 +114,26 @@ imagesc(blank,[0,200]);
 set(gca,'XTickLabel','','XTick',[])
 set(gca,'YTickLabel','','YTick',[])
 colormap(map);
+
+
+function update_mimics_angio(handles)
+
+global ANGIO;
+global MAG;
+global ANGIO_MIMICS; 
+global extra_volumes;
+
+pos = get(handles.volume_select,'Value')
+
+if pos ==1 
+    disp('Using PC-MRA');
+    ANGIO_MIMICS = ANGIO;
+elseif pos==2
+    disp('Using Mag');
+    ANGIO_MIMICS = MAG.Data.vals;
+else
+    ANGIO_MIMICS = extra_volumes{pos-2}.vol.Data.vals;
+end
 
 
 % --- Outputs from this function are returned to the command line.
@@ -120,7 +154,7 @@ function mimics_select_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 [name path] = uigetfile( ...
-    {  '*.txt','Text (*.txt)'; ...
+    {'*.txt;*.stl','Text/STL (*.txt/*.stl)'; ...
     '*.*',  'All Files (*.*)'}, ...
     'Select All Mimics Files', ...
     'MultiSelect', 'on');
@@ -140,35 +174,72 @@ else
     mask_num = 1;
 end
 set(handles.mimics_list,'String',mimics_names)
+update_mimics_angio(handles);
 
-
-global ANGIO;
+global ANGIO_MIMICS;
 global delX;
 global delY;
 global delZ;
 
-
 %% Now convert to coord
 mimics_names = get(handles.mimics_list,'String');
 
+mask_count = 0;
+stl_count = 0;
+for num= 1:length(mimics_names)
+    if ~isempty( strfind( mimics_names{num},'.stl'))
+        stl_count = stl_count +1;
+    else
+        mask_count = mask_count + 1;
+    end
+end
+mask_num = mask_count;    
+
 %%%Have to convert to scanner coordinates
 global MASK;
-MASK = single( zeros( size(ANGIO,1),size(ANGIO,2),size(ANGIO,3),length(mimics_names)));
+global STL_MASK;
+MASK = single( zeros( size(ANGIO_MIMICS,1),size(ANGIO_MIMICS,2),size(ANGIO_MIMICS,3),length(mimics_names)));
 
+mask_count = 1;
+stl_count = 1;
 for num= 1:length(mimics_names)
-    %%%Load up the mimics file
-    [xM yM zM intensity] = textread(mimics_names{num},'%f,%f,%f,%f');
-    xM = xM/delX+1;
-    yM = yM/delX+1;
-    zM = zM/delZ+1;
     
-    idx = sub2ind(size(ANGIO),round(xM),round(yM),round(zM)) + (num-1)*size(ANGIO,1)*size(ANGIO,2)*size(ANGIO,3);
-    MASK(idx)=1;
+    if ~isempty( strfind( mimics_names{num},'.stl'))
+        % Import an STL mesh, returning a PATCH-compatible face-vertex structure
+        fv = stlread(mimics_names{num});
+        fv.vertices(:,1) = fv.vertices(:,1)/delX+1;
+        fv.vertices(:,2) = fv.vertices(:,2)/delY+1;
+        fv.vertices(:,3) = fv.vertices(:,3)/delZ+1;
+
+        disp(['STL X:',num2str(min(fv.vertices(:,1))),' to ',num2str(max(fv.vertices(:,1)))]);
+        disp(['STL Y:',num2str(min(fv.vertices(:,2))),' to ',num2str(max(fv.vertices(:,2)))]);
+        disp(['STL Z:',num2str(min(fv.vertices(:,3))),' to ',num2str(max(fv.vertices(:,3)))]);
+        
+        STL_MASK{stl_count} = fv;
+        
+        stl_count = stl_count +1;
+    else
+        
+        %%%Load up the mimics file
+        [xM yM zM intensity] = textread(mimics_names{num},'%f,%f,%f,%f');
+        xM = xM/delX+1;
+        yM = yM/delX+1;
+        zM = zM/delZ+1;
+        
+        disp(['Mask X:',num2str(min(xM(:))),' to ',num2str(max(xM(:)))]);
+        disp(['Mask Y:',num2str(min(yM(:))),' to ',num2str(max(yM(:)))]);
+        disp(['Mask Z:',num2str(min(zM(:))),' to ',num2str(max(zM(:)))]);
+        
+        idx = sub2ind(size(ANGIO_MIMICS),round(xM),round(yM),round(zM)) + (mask_count-1)*size(ANGIO_MIMICS,1)*size(ANGIO_MIMICS,2)*size(ANGIO_MIMICS,3);
+        MASK(idx)=1;
+        
+        mask_count = mask_count +1;
+    end 
 end
 
 %%% Display
 axes(handles.x_mip_fig);
-im = squeeze(max(ANGIO,[],1));
+im = squeeze(max(ANGIO_MIMICS,[],1));
 im = im * 195 / max(im(:));
 for pos = 1:mask_num
     mask_mip = squeeze( max(MASK(:,:,:,pos),[],1));
@@ -183,7 +254,7 @@ set(gca,'YTickLabel','','YTick',[])
 colormap(map);
 
 axes(handles.y_mip_fig);
-im = squeeze(max(ANGIO,[],2));
+im = squeeze(max(ANGIO_MIMICS,[],2));
 im = im * 195 / max(im(:));
 for pos = 1:mask_num
     mask_mip = squeeze( max(MASK(:,:,:,pos),[],2));
@@ -199,7 +270,7 @@ colormap(map);
 
 
 axes(handles.z_mip_fig);
-im = squeeze(max(ANGIO,[],3));
+im = squeeze(max(ANGIO_MIMICS,[],3));
 im = im * 195 / max(im(:));
 for pos = 1:mask_num
     mask_mip = squeeze( max(MASK(:,:,:,pos),[],3));
@@ -212,11 +283,6 @@ imagesc(blank,[0,200+10*mask_num]);
 set(gca,'XTickLabel','','XTick',[])
 set(gca,'YTickLabel','','YTick',[])
 colormap(map);
-
-
-
-
-
 
 % --- Executes on selection change in mimics_list.
 function mimics_list_Callback(hObject, eventdata, handles)
@@ -255,8 +321,7 @@ function export_dicom_button_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-global MAG;
-global ANGIO;
+global ANGIO_MIMICS;
 global base_dir;
 global delX;
 global delY;
@@ -266,11 +331,9 @@ delX
 delY
 delZ
 
+update_mimics_angio(handles);
 info = dicominfo('dummy_pcvipr_anon.dcm');
-CD2 = int16(65000*ANGIO/max(ANGIO(:)));
-
-%CD2 = single( MAG.Data.vals );
-%CD2 = int16(65000*CD2/max(CD2(:)));
+CD2 = int16(65000*ANGIO_MIMICS/max(ANGIO_MIMICS(:)));
 
 info.SliceThickness = delZ
 
@@ -287,9 +350,9 @@ info.ImageOrientationPatient(4) = 1;
 info.ImageOrientationPatient(5) = 0;
 info.ImageOrientationPatient(6) = 0;
 
-info.AcquisitionMatrix = [size(ANGIO,1) 0 0 size(ANGIO,2)];
-info.Rows = size(ANGIO,1);
-info.Columns = size(ANGIO,2);
+info.AcquisitionMatrix = [size(ANGIO_MIMICS,1) 0 0 size(ANGIO_MIMICS,2)];
+info.Rows = size(ANGIO_MIMICS,1);
+info.Columns = size(ANGIO_MIMICS,2);
 
 info.PixelSpacing = [delX delX];  %% Mimics only supports square pixels....
 info.SliceLocation = 0;
@@ -297,11 +360,11 @@ info.SliceLocation = 0;
 folder = fullfile(base_dir,'mimics_dcm');
 mkdir(folder)
 
-I = zeros(2,size(ANGIO,3));
+I = zeros(2,size(ANGIO_MIMICS,3));
 
 axes(handles.axes1)
 
-for slice = 1:size(ANGIO,3)
+for slice = 1:size(ANGIO_MIMICS,3)
     
     % Set size
     info.ImagePositionPatient(1) = 0;
@@ -317,7 +380,7 @@ for slice = 1:size(ANGIO,3)
     colormap('gray');
     set(gca,'XTickLabel','')
     set(gca,'YTickLabel','')
-    h = text(0,0,['Exporting Slice ',num2str(slice),' of ',num2str(size(ANGIO,3))]);
+    h = text(0,0,['Exporting Slice ',num2str(slice),' of ',num2str(size(ANGIO_MIMICS,3))]);
     
     drawnow;
 end
@@ -339,3 +402,26 @@ function done_button_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 delete(handles.figure1)
+
+
+% --- Executes on selection change in volume_select.
+function volume_select_Callback(hObject, eventdata, handles)
+% hObject    handle to volume_select (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns volume_select contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from volume_select
+update_images(handles);
+
+% --- Executes during object creation, after setting all properties.
+function volume_select_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to volume_select (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end

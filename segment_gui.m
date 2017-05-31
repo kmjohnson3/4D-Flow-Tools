@@ -496,6 +496,7 @@ if mask_method < 4
         MASK = MASK > m_alpha*max(MASK(:));
     end
 else
+    
     uiwait(mimics_import_chain);
     
 end
@@ -1788,6 +1789,51 @@ function wss_button_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+global ANGIO;
+global VELX;
+global VELY;
+global VELZ;
+global VELXt;
+global VELYt;
+global VELZt;
+global MAG;
+global delX;
+global delY;
+global delZ;
+global tres;
+global MASK;
+global STL_MASK;
+global m_xstart;
+global m_xstop;
+global m_ystart;
+global m_ystop;
+global m_zstart;
+global m_zstop;
+global tframes;
+
+%% TEMP
+sMAG = single( MAG.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop)); %TEMP
+sCD = single(ANGIO(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop)); %TEMP
+sMASK = MASK(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop,:);
+sVELX = single(VELX.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop));
+sVELY = single(VELY.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop));
+sVELZ = single(VELZ.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop));
+
+sVELXt = zeros(size(sMAG,1),size(sMAG,2),size(sMAG,3),tframes,'single');
+sVELYt = zeros(size(sMAG,1),size(sMAG,2),size(sMAG,3),tframes,'single');
+sVELZt = zeros(size(sMAG,1),size(sMAG,2),size(sMAG,3),tframes,'single');
+for phase = 1:tframes
+    sVELXt(:,:,:,phase) = VELXt{phase}.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop);
+    sVELYt(:,:,:,phase) = VELYt{phase}.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop);
+    sVELZt(:,:,:,phase) = VELZt{phase}.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop);
+end
+
+sSTL = STL_MASK{1};
+sSTL.vertices(:,1) =  STL_MASK{1}.vertices(:,2) - (m_ystart - 1);
+sSTL.vertices(:,2) =  STL_MASK{1}.vertices(:,1) - (m_xstart - 1);
+sSTL.vertices(:,3) =  STL_MASK{1}.vertices(:,3) - (m_zstart - 1);
+
+wss_gui(sMAG,sVELX,sVELY,sVELZ,sVELXt,sVELYt,sVELZt,sCD,sMASK,sSTL,delX,delY,delZ,tres);
 
 
 function status_Callback(hObject, eventdata, handles)
@@ -2447,7 +2493,6 @@ global rczres;
 
 extra_volumes = [];
 if iscell(name)
-   
     for ii = 1:size(name,2)
         disp(['Load ', name{ii}]);
         extra_volumes{ii}.name = name{ii};
@@ -2459,7 +2504,6 @@ else
     extra_volumes{1}.vol  = memmapfile(fullfile(path,name),'Format',{'single',[rcxres rcyres rczres],'vals'});
     
 end
-
 
 update_export_variables(handles);
 
