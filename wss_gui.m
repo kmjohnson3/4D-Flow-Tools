@@ -24,7 +24,7 @@ function varargout = wss_gui(varargin)
 
 % Edit the above text to modify the response to help wss_gui
 
-% Last Modified by GUIDE v2.5 29-May-2017 12:19:20
+% Last Modified by GUIDE v2.5 13-Jun-2017 17:04:48
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -58,6 +58,12 @@ function wss_gui_OpeningFcn(hObject, eventdata, handles, varargin)
 handles.output = hObject;
 
 %%Load Velocity Data%%%%%%%%%%
+if numel(varargin)==0
+    wss_file = uigetfile({'*.mat'},'Select WSS Input File');
+    load(wss_file);
+else
+    save('WSS_Input.mat','varargin');
+end
 handles.MAG= varargin{1};
 handles.VX = varargin{2};
 handles.VY = varargin{3};
@@ -74,6 +80,7 @@ handles.delX = varargin{11};
 handles.delY = varargin{12};
 handles.delZ = varargin{13};
 handles.delT = varargin{14};
+
 
 handles.norm_handle =[];
 handles.wss_axis = 11;
@@ -98,6 +105,62 @@ handles.kinetic_energy = 0;
 handles.visc_energy_loss = 0;
 
 
+% Setup volume to select
+count =1;
+handles.mask_type_key(1) = 0;
+handles.mask_type_pos(1) = 1;
+voptions = {'PC-MRA'};
+for pos = 1:numel(handles.MAG)
+    voptions{end+1} = handles.MAG{pos}.Name;
+    count = count +1;
+    handles.mask_type_key(count) = 1; %MAG
+    handles.mask_type_pos(count) = pos;
+    
+end
+noptions = voptions;
+
+for pos = 1:numel(handles.STL_MASK)
+    voptions{end+1} = handles.STL_MASK{pos}.Name;
+    count = count +1;
+    handles.mask_type_key(count) = 2; %STL
+    handles.mask_type_pos(count) = pos;
+end
+set(handles.mask_type,'String',voptions);
+
+noptions{end+1} = 'Base on Mask';
+set(handles.normal_type,'String',noptions);
+
+
+
+% Surface plot types
+vtype_options = {'Avg WSS','OSI','Time Resolved WSS'};
+for pos = 1:numel(handles.MAG)
+    vtype_options{end+1} = handles.MAG{pos}.Name;
+end
+set(handles.visual_type,'String',vtype_options);
+
+
+
+
+% volume to select
+count =1;
+handles.volume_type_key(1) = 0;
+handles.volume_type_pos(1) = 1;
+voptions = {'PC-MRA'};
+for pos = 1:numel(handles.MAG)
+    voptions{end+1} = handles.MAG{pos}.Name;
+    count = count +1;
+    handles.volume_type_key(count) = 1; %MAG
+    handles.volume_type_pos(count) = pos;
+end
+for pos = 1:numel(handles.MASK)
+    voptions{end+1} = handles.MASK{pos}.Name;
+    count = count +1;
+    handles.volume_type_key(count) = 2; %MASK
+    handles.volume_type_pos(count) = pos;
+end
+set(handles.volume_type,'String',voptions);
+
 
 % Update handles structure
 guidata(hObject, handles);
@@ -116,27 +179,17 @@ function varargout = wss_gui_OutputFcn(hObject, eventdata, handles)
 % Get default command line output from handles structure
 varargout{1} = handles.output;
 
-
-% --- Executes on button press in mask_update.
-function mask_update_Callback(hObject, eventdata, handles)
-% hObject    handle to mask_update (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-update_mask(hObject,handles);
-
-
 function update_mask(hObject,handles)
 
 mask_type = get(handles.mask_type,'Value');
 %%%VISUAL METHOD DECODING
 %   1 = CD
 %   2 = MAG
-%   3 = Mask
+%   3 = STL
 vis_thresh = str2double(get(handles.lumen_thresh,'String'));
 
 new_fig = ishandle(handles.wss_axis);
-figure(handles.wss_axis);
+figobj = figure(handles.wss_axis);
 
 if new_fig == 1
     cmpos = campos;
@@ -149,8 +202,9 @@ set(gca,'CameraTargetMode','manual');
 set(gca,'CameraUpVectorMode','manual');
 set(gca,'CameraViewAngleMode','manual');
 clf;
+hold on
 
-if mask_type == 1
+if handles.mask_type_key(mask_type) == 0
     VOL = handles.CD;
     hpatch = patch(isosurface(VOL,vis_thresh*max(VOL(:)) ) );
     fv = isosurface(VOL,vis_thresh*max(VOL(:)));
@@ -158,17 +212,19 @@ if mask_type == 1
     disp(['CD Y:',num2str(min(fv.vertices(:,2))),' to ',num2str(max(fv.vertices(:,2)))]);
     disp(['CD Z:',num2str(min(fv.vertices(:,3))),' to ',num2str(max(fv.vertices(:,3)))]);
     isonormals(VOL,hpatch)
-
-elseif mask_type == 2
-    VOL = handles.MAG;
+    
+elseif handles.mask_type_key(mask_type) == 1
+    VOL = handles.MAG{handles.mask_type_pos(mask_type)}.Volume;
     hpatch = patch(isosurface(VOL,vis_thresh*max(VOL(:)) ) );
     isonormals(VOL,hpatch)
 else
     vis_thresh = 0.5;
     VOL = handles.CD;
-    hpatch = patch(handles.STL_MASK);
-
-    fv = handles.STL_MASK;
+    
+    fv = handles.STL_MASK{handles.mask_type_pos(mask_type)};
+    
+    hpatch = patch('Faces',fv.faces,'Vertices',fv.vertices);
+    
     disp(['STL X:',num2str(min(fv.vertices(:,1))),' to ',num2str(max(fv.vertices(:,1)))]);
     disp(['STL Y:',num2str(min(fv.vertices(:,2))),' to ',num2str(max(fv.vertices(:,2)))]);
     disp(['STL Z:',num2str(min(fv.vertices(:,3))),' to ',num2str(max(fv.vertices(:,3)))]);
@@ -178,7 +234,11 @@ set(hpatch,'FaceColor','red','EdgeColor', 'none');
 colormap('parula');
 %reducepatch(hpatch,0.4);
 
-camlight('headlight');
+c = camlight('headlight');
+
+f2 = @(varargin) camlight(c,'headlight');
+set(figobj, 'WindowButtonMotionFcn', f2);
+
 material('dull');
 lighting gouraud
 alpha(0.9)
@@ -205,15 +265,35 @@ if(new_fig==0)
     set(gcf,'Name','WSS Window');
 end
 
-hold on
 axis equal tight off vis3d;
-% norms = (get(hpatch,'VertexNormals'));
-% verts = (get(hpatch,'Vertices'));
-%
-% scl = 15
-% norm_handle = plot3( [verts(:,1)  verts(:,1) + scl*norms(:,1)]',[verts(:,2) verts(:,2)+scl*norms(:,2)]',[verts(:,3)  verts(:,3) + scl*norms(:,3)]','b','LineWidth',2)
-
 handles.hpatch_wall = hpatch;
+
+% Update handles structure
+guidata(hObject, handles);
+
+% Update Normals
+handles = guidata(hObject);
+update_norms(hObject, handles);
+
+% Update the Volume
+handles = guidata(hObject);
+update_volume(hObject, handles);
+
+
+function update_volume(hObject,handles)
+
+% Grab the index
+volume_type = get(handles.volume_type,'Value');
+volume_thresh = str2double(get(handles.volume_thresh,'String'));
+
+if handles.volume_type_key(volume_type) == 0
+    handles.VOLUME_MASK = handles.CD > volume_thresh*max( handles.CD(:));
+elseif handles.volume_type_key(volume_type) == 1
+    VOL = handles.MAG{handles.volume_type_pos(volume_type)}.Volume;
+    handles.VOLUME_MASK = handles.CD > volume_thresh*max( handles.CD(:));
+else
+    handles.VOLUME_MASK = handles.MASK{handles.volume_type_pos(volume_type)}.Volume;
+end
 
 % Update handles structure
 guidata(hObject, handles);
@@ -248,7 +328,7 @@ function mask_type_Callback(hObject, eventdata, handles)
 
 % Hints: contents = get(hObject,'String') returns mask_type contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from mask_type
-
+update_mask(hObject,handles);
 
 % --- Executes during object creation, after setting all properties.
 function mask_type_CreateFcn(hObject, eventdata, handles)
@@ -270,6 +350,8 @@ function normal_type_Callback(hObject, eventdata, handles)
 
 % Hints: contents = get(hObject,'String') returns normal_type contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from normal_type
+update_mask(hObject,handles);
+
 
 % --- Executes during object creation, after setting all properties.
 function normal_type_CreateFcn(hObject, eventdata, handles)
@@ -292,7 +374,7 @@ function normal_plot_type_Callback(hObject, eventdata, handles)
 
 % Hints: contents = get(hObject,'String') returns normal_plot_type contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from normal_plot_type
-
+update_mask(hObject,handles);
 
 % --- Executes during object creation, after setting all properties.
 function normal_plot_type_CreateFcn(hObject, eventdata, handles)
@@ -307,15 +389,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
-% --- Executes on button press in pushbutton2.
-function pushbutton2_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton2 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-update_norms(hObject,handles);
-
-
 function update_norms(hObject,handles)
 
 normal_type = get(handles.normal_type,'Value');
@@ -327,11 +400,13 @@ norm_plot_type= get(handles.normal_plot_type,'Value');
 
 
 new_fig = ishandle(handles.wss_axis);
-figure(handles.wss_axis);    
-if normal_type == 2
-    isonormals(handles.MAG,handles.hpatch_wall)
-elseif normal_type == 1
+h = figure(handles.wss_axis);
+cameratoolbar(h,'Show')
+
+if normal_type == 1
     isonormals(handles.CD,handles.hpatch_wall)
+elseif handles.mask_type_key(normal_type) == 1
+    isonormals(handles.MAG{handles.mask_type_pos(normal_type)}.Volume,handles.hpatch_wall)
 end
 
 norms = (get(handles.hpatch_wall,'VertexNormals'));
@@ -362,7 +437,6 @@ handles.norms = norms;
 
 % Update handles structure
 guidata(hObject, handles);
-
 
 function viscosity_value_Callback(hObject, eventdata, handles)
 % hObject    handle to viscosity_value (see GCBO)
@@ -397,6 +471,8 @@ update_wss(hObject,handles,0);
 
 function update_wss(hObject,handles, time_update)
 
+handles
+
 visc = str2double(get(handles.viscosity_value,'String'));
 poly_num = str2num(get(handles.poly_num,'String'));
 poly_order = str2num(get(handles.poly_order,'String'));
@@ -408,91 +484,16 @@ conv = ( visc/1000 ) * ( 1 / 1000 ) / ( handles.delX / 1000 );
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%          TIME RESOLVED WSS UPDATE                    %%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if time_update == 1
+
+for time = 1:size(handles.VXt,4)
     
-    for time = 1:size(handles.VXt,4)
-        
-        time
-        %%%%%%GET VELOCITY POSITIONS%%%%%
-        for pos=1:size(handles.verts,1)
-            norm_size= sqrt( handles.norms(pos,1).^2 + handles.norms(pos,2).^2 + handles.norms( pos,3).^2);
-            handles.norms(pos,1) = handles.norms(pos,1)/norm_size;
-            handles.norms(pos,2) = handles.norms(pos,2)/norm_size;
-            handles.norms(pos,3) = handles.norms(pos,3)/norm_size;
-            
-            for poly_pos = 1:poly_num
-                
-                py = handles.verts(pos,1)- (poly_pos -1.0)*handles.norms(pos,1);
-                px = handles.verts(pos,2)- (poly_pos -1.0)*handles.norms(pos,2);
-                pz = handles.verts(pos,3)- (poly_pos -1.0)*handles.norms(pos,3);
-                
-                vx_wss(pos,poly_pos) = lin3dt(handles.VXt,time,px,py,pz);
-                vy_wss(pos,poly_pos) = lin3dt(handles.VYt,time,px,py,pz);
-                vz_wss(pos,poly_pos) = lin3dt(handles.VZt,time,px,py,pz);
-            end
-        end
-        
-        %%%%%%%%%NOW GET WSS%%%%%%%%
-        for pos=1:size(handles.verts,1)
-            fit_vx = polyfit(1:poly_num,vx_wss(pos,:),poly_order);
-            fit_vy = polyfit(1:poly_num,vy_wss(pos,:),poly_order);
-            fit_vz = polyfit(1:poly_num,vz_wss(pos,:),poly_order);
-            
-            vxwall = polyval(fit_vx,1);
-            vywall = polyval(fit_vy,1);
-            vzwall = polyval(fit_vz,1);
-            
-            vxplus = polyval(fit_vx,1+del);
-            vyplus = polyval(fit_vy,1+del);
-            vzplus = polyval(fit_vz,1+del);
-            
-            vplus = [vxplus vyplus vzplus]; %- (sum([vxplus vyplus vzplus].*[norm(pos,2) norm(pos,1) norm(3,pos)]))*[norm(pos,2) norm(pos,1) norm(3,pos)]
-            vwall = [vxwall vywall vzwall]; %- (sum([vxwall vywall vzwall].*[norm(pos,2) norm(pos,1) norm(3,pos)]))*[norm(pos,2) norm(pos,1) norm(3,pos)]
-            normal= [handles.norms(pos,2) handles.norms(pos,1) handles.norms(pos,3)];
-            
-            vtwall = cross(vwall,normal);
-            vtplus = cross(vplus,normal);
-            
-            wsst(pos,time)=abs(conv*( ( sqrt( sum(vtplus.^2))) - ( sqrt( sum(vtwall.^2))) )/del);
-        end
-        
-    end
-    
-    
-    %%%%% Calc OSI (note can fully due without knowing directionality %%%%%%%
-    osi = std(wsst,1,2)./mean(wsst,2);
-    idx = find( isnan(osi));
-    osi(idx)=0.0;
-    
-    handles.wsst = wsst;
-    handles.osi = osi;
-    
-    wss_temporal_avg = mean(wsst,2);
-    wss2 = sort(wss_temporal_avg);
-    handles.wss_mean = mean(wss_temporal_avg(:));
-    handles.wss_std = std(wss_temporal_avg(:));
-    handles.wss_med = median(wss_temporal_avg(:));
-    handles.wss_lq = wss2( ceil(numel(wss2)*0.25) );
-    handles.wss_uq = wss2( floor(numel(wss2)*0.75) );
-    
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %%%%%%          Average WSS UPDATE                          %%%%
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-else
-    
+    set(handles.status_text,'String',['Updating time point ',num2str(time)]);
     %%%%%%GET VELOCITY POSITIONS%%%%%
-    disp('Getting Norms');
     for pos=1:size(handles.verts,1)
-        
-        if( mod(pos,500)==1)
-            disp(['Doing Point ', int2str(pos),' of ',num2str(size(handles.verts,1))]);
-        end
-        
         norm_size= sqrt( handles.norms(pos,1).^2 + handles.norms(pos,2).^2 + handles.norms( pos,3).^2);
         handles.norms(pos,1) = handles.norms(pos,1)/norm_size;
         handles.norms(pos,2) = handles.norms(pos,2)/norm_size;
         handles.norms(pos,3) = handles.norms(pos,3)/norm_size;
-        
         
         for poly_pos = 1:poly_num
             
@@ -500,20 +501,14 @@ else
             px = handles.verts(pos,2)- (poly_pos -1.0)*handles.norms(pos,2);
             pz = handles.verts(pos,3)- (poly_pos -1.0)*handles.norms(pos,3);
             
-            vx_wss(pos,poly_pos) = lin3d(handles.VX,px,py,pz);
-            vy_wss(pos,poly_pos) = lin3d(handles.VY,px,py,pz);
-            vz_wss(pos,poly_pos) = lin3d(handles.VZ,px,py,pz);
+            vx_wss(pos,poly_pos) = lin3dt(handles.VXt,time,px,py,pz);
+            vy_wss(pos,poly_pos) = lin3dt(handles.VYt,time,px,py,pz);
+            vz_wss(pos,poly_pos) = lin3dt(handles.VZt,time,px,py,pz);
         end
     end
     
     %%%%%%%%%NOW GET WSS%%%%%%%%
-    disp('Getting Wss');
     for pos=1:size(handles.verts,1)
-        
-        if( mod(pos,500)==1)
-            disp(['Doing Point ', int2str(pos),' of ',num2str(size(handles.verts,1))]);
-        end
-        
         fit_vx = polyfit(1:poly_num,vx_wss(pos,:),poly_order);
         fit_vy = polyfit(1:poly_num,vy_wss(pos,:),poly_order);
         fit_vz = polyfit(1:poly_num,vz_wss(pos,:),poly_order);
@@ -533,22 +528,125 @@ else
         vtwall = cross(vwall,normal);
         vtplus = cross(vplus,normal);
         
-        wss(pos)=abs( conv*( ( sqrt( sum(vtplus.^2))) - ( sqrt( sum(vtwall.^2))) )/del);
+        wsst(pos,time)=abs(conv*( ( sqrt( sum(vtplus.^2))) - ( sqrt( sum(vtwall.^2))) )/del);
     end
-    
-    wss2 = sort(wss);
-    handles.avg_wss_mean = mean(wss);
-    handles.avg_wss_std = std(wss);
-    handles.avg_wss_med = median(wss);
-    handles.avg_wss_lq = wss2( ceil(numel(wss2)*0.25) );
-    handles.avg_wss_uq = wss2( floor(numel(wss2)*0.75) );
-    
-    handles.wss = wss;
     
 end
 
+
+%%%%% Calc OSI (note can fully due without knowing directionality %%%%%%%
+osi = std(wsst,1,2)./mean(wsst,2);
+idx = find( isnan(osi));
+osi(idx)=0.0;
+
+handles.wsst = wsst;
+handles.osi = osi;
+
+wss_temporal_avg = mean(wsst,2);
+wss2 = sort(wss_temporal_avg);
+handles.wss_mean = mean(wss_temporal_avg(:));
+handles.wss_std = std(wss_temporal_avg(:));
+handles.wss_med = median(wss_temporal_avg(:));
+handles.wss_lq = wss2( ceil(numel(wss2)*0.25) );
+handles.wss_uq = wss2( floor(numel(wss2)*0.75) );
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%          Average WSS UPDATE                          %%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%%%GET VELOCITY POSITIONS%%%%%
+disp('Getting Norms');
+for pos=1:size(handles.verts,1)
+    
+    if( mod(pos,500)==1)
+        disp(['Doing Point ', int2str(pos),' of ',num2str(size(handles.verts,1))]);
+    end
+    
+    norm_size= sqrt( handles.norms(pos,1).^2 + handles.norms(pos,2).^2 + handles.norms( pos,3).^2);
+    handles.norms(pos,1) = handles.norms(pos,1)/norm_size;
+    handles.norms(pos,2) = handles.norms(pos,2)/norm_size;
+    handles.norms(pos,3) = handles.norms(pos,3)/norm_size;
+    
+    
+    for poly_pos = 1:poly_num
+        
+        py = handles.verts(pos,1)- (poly_pos -1.0)*handles.norms(pos,1);
+        px = handles.verts(pos,2)- (poly_pos -1.0)*handles.norms(pos,2);
+        pz = handles.verts(pos,3)- (poly_pos -1.0)*handles.norms(pos,3);
+        
+        vx_wss(pos,poly_pos) = lin3d(handles.VX,px,py,pz);
+        vy_wss(pos,poly_pos) = lin3d(handles.VY,px,py,pz);
+        vz_wss(pos,poly_pos) = lin3d(handles.VZ,px,py,pz);
+    end
+end
+
+%%%%%%%%%NOW GET WSS%%%%%%%%
+disp('Getting Wss');
+for pos=1:size(handles.verts,1)
+    
+    if( mod(pos,500)==1)
+        disp(['Doing Point ', int2str(pos),' of ',num2str(size(handles.verts,1))]);
+    end
+    
+    fit_vx = polyfit(1:poly_num,vx_wss(pos,:),poly_order);
+    fit_vy = polyfit(1:poly_num,vy_wss(pos,:),poly_order);
+    fit_vz = polyfit(1:poly_num,vz_wss(pos,:),poly_order);
+    
+    vxwall = polyval(fit_vx,1);
+    vywall = polyval(fit_vy,1);
+    vzwall = polyval(fit_vz,1);
+    
+    vxplus = polyval(fit_vx,1+del);
+    vyplus = polyval(fit_vy,1+del);
+    vzplus = polyval(fit_vz,1+del);
+    
+    vplus = [vxplus vyplus vzplus]; %- (sum([vxplus vyplus vzplus].*[norm(pos,2) norm(pos,1) norm(3,pos)]))*[norm(pos,2) norm(pos,1) norm(3,pos)]
+    vwall = [vxwall vywall vzwall]; %- (sum([vxwall vywall vzwall].*[norm(pos,2) norm(pos,1) norm(3,pos)]))*[norm(pos,2) norm(pos,1) norm(3,pos)]
+    normal= [handles.norms(pos,2) handles.norms(pos,1) handles.norms(pos,3)];
+    
+    vtwall = cross(vwall,normal);
+    vtplus = cross(vplus,normal);
+    
+    wss(pos)=abs( conv*( ( sqrt( sum(vtplus.^2))) - ( sqrt( sum(vtwall.^2))) )/del);
+end
+
+
+% Grab magnitude signal
+for mask_pos = 1:numel(handles.MAG)
+    for pos=1:size(handles.verts,1)
+        if( mod(pos,500)==1)
+            disp(['Doing Point ', int2str(pos),' of ',num2str(size(handles.verts,1))]);
+        end
+        
+        for poly_pos = [-1 0 1]
+            py = handles.verts(pos,1)- (poly_pos)*handles.norms(pos,1);
+            px = handles.verts(pos,2)- (poly_pos)*handles.norms(pos,2);
+            pz = handles.verts(pos,3)- (poly_pos)*handles.norms(pos,3);
+            Wvals(poly_pos+2) = lin3d(handles.MAG{mask_pos}.Volume,px,py,pz);
+        end
+        
+        mag_wall{mask_pos}.Value(pos) = max(Wvals);
+        mag_wall{mask_pos}.Name = handles.MAG{mask_pos}.Name;
+    end
+end
+
+wss2 = sort(wss);
+handles.avg_wss_mean = mean(wss);
+handles.avg_wss_std = std(wss);
+handles.avg_wss_med = median(wss);
+handles.avg_wss_lq = wss2( ceil(numel(wss2)*0.25) );
+handles.avg_wss_uq = wss2( floor(numel(wss2)*0.75) );
+
+handles.wss = wss;
+handles.mag_wall = mag_wall;
+
+
+
+
 % Volume features
-idx = handles.MASK > 0;
+idx = handles.VOLUME_MASK > 0;
 voxel_volume = handles.delX*handles.delY*handles.delZ;
 
 % Average Velocity [mm/s]
@@ -572,15 +670,73 @@ for time = 1:size(handles.VXt,4)
     handles.dyn_kinetic_energy(time) = 0.5*density_of_blood*voxel_volume_M3*sum( vsquared(:)/1000^2);
 end
 handles.dyn_kinetic_energy
-    
+
+
 % Viscous Energy Loss [W]
-handles.visc_energy_loss = 0;
+VE = zeros(size(handles.VX),'single');
+VX = handles.VX;
+VY = handles.VY;
+VZ = handles.VZ;
+visc = str2double(get(handles.viscosity_value,'String'))/1000;
+conv_vel = 1/1000;
+for i = 2:size(handles.VX,1)-1
+    for j = 2:size(handles.VX,2)-1
+        for k = 2:size(handles.VX,3)-1
+            if handles.VOLUME_MASK(i,j,k) > 0
+                
+                x0 = i;
+                y0 = j;
+                z0 = k;
+                
+                %%%velocity Terms
+                vx = conv_vel*VX(x0,y0,z0);
+                vy = conv_vel*VY(x0,y0,z0);
+                vz = conv_vel*VZ(x0,y0,z0);
+                
+                %%First Derivatives
+                dvxdx = conv_vel*( VX(x0+1,y0,z0) - VX(x0-1,y0,z0) )/(2*handles.delX/1000);
+                dvxdy = conv_vel*( VX(x0,y0+1,z0) - VX(x0,y0-1,z0) )/(2*handles.delY/1000);
+                dvxdz = conv_vel*( VX(x0,y0,z0+1) - VX(x0,y0,z0-1) )/(2*handles.delZ/1000);
+                
+                dvydx = conv_vel*( VY(x0+1,y0,z0) - VY(x0-1,y0,z0) )/(2*handles.delX/1000);
+                dvydy = conv_vel*( VY(x0,y0+1,z0) - VY(x0,y0-1,z0) )/(2*handles.delY/1000);
+                dvydz = conv_vel*( VY(x0,y0,z0+1) - VY(x0,y0,z0-1) )/(2*handles.delZ/1000);
+                
+                dvzdx = conv_vel*( VZ(x0+1,y0,z0) - VZ(x0-1,y0,z0) )/(2*handles.delX/1000);
+                dvzdy = conv_vel*( VZ(x0,y0+1,z0) - VZ(x0,y0-1,z0) )/(2*handles.delY/1000);
+                dvzdz = conv_vel*( VZ(x0,y0,z0+1) - VZ(x0,y0,z0-1) )/(2*handles.delZ/1000);
+                
+                VE(i,j,k) = 2*visc*( dvxdx^2 + dvydy^2 + dvzdz^2 - 1/3*(dvxdx + dvydy + dvzdz)^2 ) ...
+                    + visc*( dvydx+dvxdy)^2 + visc*(dvzdy + dvydz)^2 + visc*(dvxdz + dvzdx)^2;
+            end
+        end
+    end
+end
+
+size(VE)
+size(handles.VOLUME_MASK)
+handles.visc_energy_loss = sum(VE(idx)*voxel_volume_M3);
 
 % Update handles structure
 guidata(hObject, handles);
 
 update_wss_text(hObject, handles);
 update_image(handles);
+
+
+figure
+time = (0:numel(handles.dyn_kinetic_energy)-1)*handles.delT;
+plot(time,handles.dyn_kinetic_energy);
+xlabel('Time [s]');
+ylabel('Kinetic Energy [J]');
+
+
+figure
+time = (0:numel(handles.dyn_kinetic_energy)-1)*handles.delT;
+plot(time, mean(handles.wsst,1));
+xlabel('Time [s]');
+ylabel('Mean Wall Shear Stress [N/m^2]');
+
 
 function poly_num_Callback(hObject, eventdata, handles)
 % hObject    handle to poly_num (see GCBO)
@@ -608,32 +764,34 @@ function update_wss_text(hObject, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-temp_text = sprintf('Avg WSS : Median = %2.2f [%2.2f %2.2f], Mean = %2.2f (+/- %2.2f)' ...
-    ,handles.avg_wss_med ...
-    ,handles.avg_wss_lq ...
-    ,handles.avg_wss_uq ...
-    ,handles.avg_wss_mean ...
-    ,handles.avg_wss_std);
+temp_text{1} = sprintf('WSS [N/m^2] from Time Averaged Data:');
+temp_text{end+1} = sprintf('  Median             = %2.2f',handles.avg_wss_med);
+temp_text{end+1} = sprintf('  Lower Quartile     = %2.2f',handles.avg_wss_lq);
+temp_text{end+1} = sprintf('  Upper Quartile     = %2.2f',handles.avg_wss_uq);
+temp_text{end+1} = sprintf('  Mean               = %2.2f',handles.avg_wss_mean);
+temp_text{end+1} = sprintf('  Standard Deviation = %2.2f',handles.avg_wss_std);
 
-temp_text2 = sprintf('WSS : Median = %2.2f [%2.2f %2.2f], Mean = %2.2f (+/- %2.2f)' ...
-    ,handles.wss_med ...
-    ,handles.wss_lq ...
-    ,handles.wss_uq ...
-    ,handles.wss_mean ...
-    ,handles.wss_std);
+temp_text{end+1} = sprintf('WSS [N/m^2] from Time Resolved Data:');
+temp_text{end+1} = sprintf('  Median             = %2.2f',handles.wss_med);
+temp_text{end+1} = sprintf('  Lower Quartile     = %2.2f',handles.wss_lq);
+temp_text{end+1} = sprintf('  Upper Quartile     = %2.2f',handles.wss_uq);
+temp_text{end+1} = sprintf('  Mean               = %2.2f',handles.wss_mean);
+temp_text{end+1} = sprintf('  Standard Deviation = %2.2f',handles.wss_std);
 
-temp_text3 = sprintf('Average Velocity [mm/s]= %f\nVolume [ml] = %f\nKinetic Energy [mJ] = %f\nViscous Energy Loss [W] = %f\n' ...
-    ,handles.average_velocity ...
-    ,handles.volume ...
-    ,1000*handles.kinetic_energy ...
-    ,handles.visc_energy_loss);
+temp_text{end+1} = sprintf('Native Measures:');
+temp_text{end+1} = sprintf('  Avg Velocity [mm/s]     = %f',handles.average_velocity);
+temp_text{end+1} = sprintf('  Volume [ml]             = %f',handles.volume);
+temp_text{end+1} = sprintf('  Kinetic Energy [mJ]     = %f',1000*handles.kinetic_energy);
+temp_text{end+1} = sprintf('  Viscous Energy Loss [mW] = %f',1000*handles.visc_energy_loss);
 
-tt = sprintf('%s\n%s\n%s\n',temp_text,temp_text2,temp_text3);
+for pos = 1:numel(handles.mag_wall)
+    temp_text{end+1} = sprintf('Wall Magnitude: %s',handles.mag_wall{pos}.Name);
+    temp_text{end+1} = sprintf('  Mean:   %f',mean(handles.mag_wall{pos}.Value(:)) );
+    temp_text{end+1} = sprintf('  Median: %f',median(handles.mag_wall{pos}.Value(:)) );
+    temp_text{end+1} = sprintf('  Max:    %f',max(handles.mag_wall{pos}.Value(:)) );
+end
 
-set(handles.wss_text,'string',tt);
-
-
-
+set(handles.wss_text,'string',temp_text);
 
 function poly_order_Callback(hObject, eventdata, handles)
 % hObject    handle to poly_order (see GCBO)
@@ -664,7 +822,6 @@ function update_time_wss_Callback(hObject, eventdata, handles)
 % hObject    handle to update_time_wss (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-
 
 update_wss(hObject,handles,1);
 
@@ -730,6 +887,7 @@ figure(handles.wss_axis);
 set(gcf,'InvertHardCopy','off');
 axis manual
 axs = [0 0 1];
+
 
 for n=0:num_rot
     
@@ -810,10 +968,8 @@ visual_type = get(handles.visual_type,'Value');
 % 1 - Steady WSS
 % 2 - Osilatory WSS
 % 3 - Time WSS
-
-
+% 4+- Wall Signal
 %%%%%%ASSIGN COLORS %%%%%%%%%%%%%%
-
 
 if visual_type == 1 %%%%AVERAGE
     max_wss = max(handles.wss(:));
@@ -836,7 +992,6 @@ if visual_type == 1 %%%%AVERAGE
     set(get(t,'Label'),'String','Shear Stress (N/m^2)');
     
 elseif visual_type == 2
-    
     max_osi = max(handles.osi(:));
     cmap = parula(512);
     Cdata = zeros(size(handles.verts(1),1),3);
@@ -858,7 +1013,7 @@ elseif visual_type == 2
     t = colorbar('YLim',[0.0 1.0],'YTick',[0.0 1.0],'YTickLabel',{'0',num2str(max_osi*color_range)},'FontSize',22);
     set(get(t,'Label'),'String','Oscillator Shear Stress (N/m^2)','Color','w');
     
-elseif ( visual_type == 3 || visual_type == 4 )
+elseif ( visual_type == 3 )
     max_wss = max(handles.wsst(:));
     cmap = parula(512);
     Cdata = zeros(size(handles.verts(1),1),3);
@@ -882,14 +1037,34 @@ elseif ( visual_type == 3 || visual_type == 4 )
         t = colorbar('YLim',[0.0 1.0],'YTick',[0.0 1.0],'YTickLabel',{'0',num2str(max_wss*color_range)},'FontSize',22);
         set(get(t,'Label'),'String','Shear Stress (N/m^2)','Color','w');
         
-        if visual_type == 3
-            pause(0.5);
-        elseif visual_type == 4
-            set(gcf,'InvertHardCopy','off');
-            fname=['TIME_WSS',sprintf('%03d',time),'.jpg'];
-            print('-opengl','-f1','-r200','-djpeg100',fname);
-        end
+        pause(0.5);
+        set(gcf,'InvertHardCopy','off');
+        fname=['TIME_WSS',sprintf('%03d',time),'.jpg'];
+        print('-opengl','-f1','-r200','-djpeg100',fname);
     end
+elseif ( visual_type >= 4 )
+    
+    max_mag_wall = max(handles.mag_wall{visual_type-3}.Value(:));
+    disp(['Max Mag Wall',num2str(max_mag_wall)]);
+    cmap = parula(512);
+    Cdata = zeros(size(handles.verts(1),1),3);
+    for pos =1:size(handles.verts,1)
+        cpos = 1+floor(512*abs(handles.mag_wall{visual_type-3}.Value(pos))/max_mag_wall/color_range);
+        if(cpos>512)
+            cpos = 512;
+        end
+        if(cpos < 1)
+            cpos = 1;
+        end
+        Cdata(pos,:) = cmap(cpos,:);
+    end
+    
+    new_fig = ishandle(handles.wss_axis);
+    figure(handles.wss_axis);
+    set(handles.hpatch_wall,'FaceColor','interp','EdgeColor', 'none','FaceVertexCData',Cdata);
+    
+    t = colorbar('YLim',[0.0 1.0],'YTick',[0.0 1.0],'YTickLabel',{'0',num2str(max_mag_wall*color_range)},'FontSize',22);
+    set(get(t,'Label'),'String','Oscillator Shear Stress (N/m^2)','Color','w');
     
 end
 
@@ -968,16 +1143,8 @@ function box_save_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-base_name = get(handles.box_filename,'string');
-
-hist_name = [base_name,'.hist'];
-raw_name  = [base_name,'.box_vals'];
-
-wss_out = wss(1,box_idx);
-
-dlmwrite(hist_name,[hist_xout; hist_nout]','\t');
-dlmwrite(raw_name,[1:length(box_idx); wss_out]','\t');
-
+out_name = get(handles.box_filename,'String')
+save(out_name,'handles');
 
 % --- Executes during object creation, after setting all properties.
 function update_image_CreateFcn(hObject, eventdata, handles)
@@ -995,3 +1162,65 @@ function hist_axes_CreateFcn(hObject, eventdata, handles)
 % Hint: place code in OpeningFcn to populate hist_axes
 
 
+% --- Executes during object creation, after setting all properties.
+function wss_text_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to wss_text (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+set(hObject,'max',999);
+
+
+
+
+% --- Executes on selection change in volume_type.
+function volume_type_Callback(hObject, eventdata, handles)
+% hObject    handle to volume_type (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns volume_type contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from volume_type
+update_mask(hObject,handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function volume_type_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to volume_type (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function volume_thresh_Callback(hObject, eventdata, handles)
+% hObject    handle to volume_thresh (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of volume_thresh as text
+%        str2double(get(hObject,'String')) returns contents of volume_thresh as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function volume_thresh_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to volume_thresh (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end

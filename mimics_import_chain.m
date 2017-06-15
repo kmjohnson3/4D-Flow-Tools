@@ -165,12 +165,10 @@ if iscell(name)
     mimics_files = size(name,2)
     for ii = 1:mimics_files
         mimics_names{ii} = [path name{ii}]
-        mask_names{ii} =  name{ii};
     end
     mask_num = mimics_files;
 else
     mimics_names{1} = [path name]
-    mask_names{1} =  name;
     mask_num = 1;
 end
 set(handles.mimics_list,'String',mimics_names)
@@ -198,7 +196,7 @@ mask_num = mask_count;
 %%%Have to convert to scanner coordinates
 global MASK;
 global STL_MASK;
-MASK = single( zeros( size(ANGIO_MIMICS,1),size(ANGIO_MIMICS,2),size(ANGIO_MIMICS,3),length(mimics_names)));
+MASK = single( zeros( size(ANGIO_MIMICS,1),size(ANGIO_MIMICS,2),size(ANGIO_MIMICS,3),mask_num));
 
 mask_count = 1;
 stl_count = 1;
@@ -216,7 +214,8 @@ for num= 1:length(mimics_names)
         disp(['STL Z:',num2str(min(fv.vertices(:,3))),' to ',num2str(max(fv.vertices(:,3)))]);
         
         STL_MASK{stl_count} = fv;
-        
+        [pathstr,name,ext] = fileparts(mimics_names{num})
+        STL_MASK{stl_count}.Name = [name ext];
         stl_count = stl_count +1;
     else
         
@@ -232,6 +231,10 @@ for num= 1:length(mimics_names)
         
         idx = sub2ind(size(ANGIO_MIMICS),round(xM),round(yM),round(zM)) + (mask_count-1)*size(ANGIO_MIMICS,1)*size(ANGIO_MIMICS,2)*size(ANGIO_MIMICS,3);
         MASK(idx)=1;
+        
+        
+        [pathstr,name,ext] = fileparts(mimics_names{num})
+        mask_names{mask_count} = [name ext];
         
         mask_count = mask_count +1;
     end 

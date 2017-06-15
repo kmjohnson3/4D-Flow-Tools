@@ -1810,29 +1810,47 @@ global m_ystop;
 global m_zstart;
 global m_zstop;
 global tframes;
+global mask_names;
 
 %% TEMP
-sMAG = single( MAG.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop)); %TEMP
 sCD = single(ANGIO(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop)); %TEMP
-sMASK = MASK(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop,:);
+for pos=1:size(MASK,4)
+    sMASK{pos}.Volume = MASK(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop,pos);
+    sMASK{pos}.Name = mask_names{pos};
+end
+
 sVELX = single(VELX.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop));
 sVELY = single(VELY.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop));
 sVELZ = single(VELZ.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop));
 
-sVELXt = zeros(size(sMAG,1),size(sMAG,2),size(sMAG,3),tframes,'single');
-sVELYt = zeros(size(sMAG,1),size(sMAG,2),size(sMAG,3),tframes,'single');
-sVELZt = zeros(size(sMAG,1),size(sMAG,2),size(sMAG,3),tframes,'single');
+sVELXt = zeros(size(sCD,1),size(sCD,2),size(sCD,3),tframes,'single');
+sVELYt = zeros(size(sCD,1),size(sCD,2),size(sCD,3),tframes,'single');
+sVELZt = zeros(size(sCD,1),size(sCD,2),size(sCD,3),tframes,'single');
 for phase = 1:tframes
     sVELXt(:,:,:,phase) = VELXt{phase}.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop);
     sVELYt(:,:,:,phase) = VELYt{phase}.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop);
     sVELZt(:,:,:,phase) = VELZt{phase}.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop);
 end
 
-sSTL = STL_MASK{1};
-sSTL.vertices(:,1) =  STL_MASK{1}.vertices(:,2) - (m_ystart - 1);
-sSTL.vertices(:,2) =  STL_MASK{1}.vertices(:,1) - (m_xstart - 1);
-sSTL.vertices(:,3) =  STL_MASK{1}.vertices(:,3) - (m_zstart - 1);
+for pos = 1:numel(STL_MASK)
+    sSTL{pos} = STL_MASK{pos};
+    sSTL{pos}.vertices(:,1) =  STL_MASK{pos}.vertices(:,2) - (m_ystart - 1);
+    sSTL{pos}.vertices(:,2) =  STL_MASK{pos}.vertices(:,1) - (m_xstart - 1);
+    sSTL{pos}.vertices(:,3) =  STL_MASK{pos}.vertices(:,3) - (m_zstart - 1);
+end
 
+% Get all possible magntudes
+sMAG{1}.Volume = single( MAG.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop)); %TEMP
+sMAG{1}.Name = 'PC-Magnitude';
+
+% Setup volume to select
+global extra_volumes;
+if numel(extra_volumes) > 0 
+    for pos = 1:numel(extra_volumes)
+        sMAG{pos+1}.Volume = single( extra_volumes{pos}.vol.Data.vals(m_xstart:m_xstop,m_ystart:m_ystop,m_zstart:m_zstop));
+        sMAG{pos+1}.Name = extra_volumes{pos}.name;
+    end
+end
 wss_gui(sMAG,sVELX,sVELY,sVELZ,sVELXt,sVELYt,sVELZt,sCD,sMASK,sSTL,delX,delY,delZ,tres);
 
 
