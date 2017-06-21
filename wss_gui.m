@@ -59,8 +59,8 @@ handles.output = hObject;
 
 %%Load Velocity Data%%%%%%%%%%
 if numel(varargin)==0
-    wss_file = uigetfile({'*.mat'},'Select WSS Input File');
-    load(wss_file);
+    [wss_file,pathname] = uigetfile({'*.mat'},'Select WSS Input File');
+    load(fullfile(pathname,wss_file));
 else
     save('WSS_Input.mat','varargin');
 end
@@ -96,8 +96,11 @@ handles.wss_std = 0;
 handles.wss_med = 0;
 handles.wss_lq = 0;
 handles.wss_uq =0;
-
-
+handles.osi_mean = 0;
+handles.osi_std = 0;
+handles.osi_med = 0;
+handles.osi_lq = 0;
+handles.osi_uq = 0;
 
 handles.average_velocity = 0;
 handles.volume = 0;
@@ -488,6 +491,8 @@ conv = ( visc/1000 ) * ( 1 / 1000 ) / ( handles.delX / 1000 );
 for time = 1:size(handles.VXt,4)
     
     set(handles.status_text,'String',['Updating time point ',num2str(time)]);
+    drawnow
+    
     %%%%%%GET VELOCITY POSITIONS%%%%%
     for pos=1:size(handles.verts,1)
         norm_size= sqrt( handles.norms(pos,1).^2 + handles.norms(pos,2).^2 + handles.norms( pos,3).^2);
@@ -550,6 +555,12 @@ handles.wss_med = median(wss_temporal_avg(:));
 handles.wss_lq = wss2( ceil(numel(wss2)*0.25) );
 handles.wss_uq = wss2( floor(numel(wss2)*0.75) );
 
+osi2 = sort(osi);
+handles.osi_mean = mean(osi(:));
+handles.osi_std = std(osi(:));
+handles.osi_med = median(osi(:));
+handles.osi_lq = osi2( ceil(numel(osi2)*0.25) );
+handles.osi_uq = osi2( floor(numel(osi2)*0.75) );
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%          Average WSS UPDATE                          %%%%
@@ -778,6 +789,13 @@ temp_text{end+1} = sprintf('  Upper Quartile     = %2.2f',handles.wss_uq);
 temp_text{end+1} = sprintf('  Mean               = %2.2f',handles.wss_mean);
 temp_text{end+1} = sprintf('  Standard Deviation = %2.2f',handles.wss_std);
 
+temp_text{end+1} = sprintf('OSI from Time Resolved Data:');
+temp_text{end+1} = sprintf('  Median             = %2.2f',handles.osi_med);
+temp_text{end+1} = sprintf('  Lower Quartile     = %2.2f',handles.osi_lq);
+temp_text{end+1} = sprintf('  Upper Quartile     = %2.2f',handles.osi_uq);
+temp_text{end+1} = sprintf('  Mean               = %2.2f',handles.osi_mean);
+temp_text{end+1} = sprintf('  Standard Deviation = %2.2f',handles.osi_std);
+
 temp_text{end+1} = sprintf('Native Measures:');
 temp_text{end+1} = sprintf('  Avg Velocity [mm/s]     = %f',handles.average_velocity);
 temp_text{end+1} = sprintf('  Volume [ml]             = %f',handles.volume);
@@ -790,7 +808,6 @@ for pos = 1:numel(handles.mag_wall)
     temp_text{end+1} = sprintf('  Median: %f',median(handles.mag_wall{pos}.Value(:)) );
     temp_text{end+1} = sprintf('  Max:    %f',max(handles.mag_wall{pos}.Value(:)) );
 end
-
 set(handles.wss_text,'string',temp_text);
 
 function poly_order_Callback(hObject, eventdata, handles)
@@ -1143,8 +1160,52 @@ function box_save_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+% Saving .mat file
 out_name = get(handles.box_filename,'String')
 save(out_name,'handles');
+
+% Saving 
+col_header = '';
+row_header = { out_name};
+data = [];
+[col_header,data] = insert_xls_entry('Avg WWS Median',handles.avg_wss_med,col_header,data);
+[col_header,data] = insert_xls_entry('Avg WWS Lower Quartile',handles.avg_wss_lq,col_header,data);
+[col_header,data] = insert_xls_entry('Avg WWS Upper Quartile',handles.avg_wss_uq,col_header,data);
+[col_header,data] = insert_xls_entry('Avg WWS Mean',handles.avg_wss_mean,col_header,data);
+[col_header,data] = insert_xls_entry('Avg WWS Standard Deviation',handles.avg_wss_std,col_header,data);
+
+[col_header,data] = insert_xls_entry('WSS Median',handles.wss_med,col_header,data);
+[col_header,data] = insert_xls_entry('WSS Median Lower Quartile',handles.wss_lq,col_header,data);
+[col_header,data] = insert_xls_entry('WSS Median Upper Quartile',handles.wss_uq,col_header,data);
+[col_header,data] = insert_xls_entry('WSS Median Mean',handles.wss_mean,col_header,data);
+[col_header,data] = insert_xls_entry('WSS Median Standard Deviation',handles.wss_std,col_header,data);
+
+[col_header,data] = insert_xls_entry('OSI Median',handles.osi_med,col_header,data);
+[col_header,data] = insert_xls_entry('OSI Median Lower Quartile',handles.osi_lq,col_header,data);
+[col_header,data] = insert_xls_entry('OSI Median Upper Quartile',handles.osi_uq,col_header,data);
+[col_header,data] = insert_xls_entry('OSI Median Mean',handles.osi_mean,col_header,data);
+[col_header,data] = insert_xls_entry('OSI Median Standard Deviation',handles.osi_std,col_header,data);
+
+[col_header,data] = insert_xls_entry('Avg Velocity [mm/s]',handles.average_velocity,col_header,data);
+[col_header,data] = insert_xls_entry('Volume [ml]',handles.volume,col_header,data);
+[col_header,data] = insert_xls_entry('Kinetic Energy [mJ]',1000*handles.kinetic_energy,col_header,data);
+[col_header,data] = insert_xls_entry('Viscous Energy Loss [mW]',1000*handles.visc_energy_loss,col_header,data);
+
+for pos = 1:numel(handles.mag_wall)
+   [col_header,data] = insert_xls_entry([handles.mag_wall{pos}.Name,' Mean'],mean(handles.mag_wall{pos}.Value(:)),col_header,data);
+   [col_header,data] = insert_xls_entry([handles.mag_wall{pos}.Name,' Median'],median(handles.mag_wall{pos}.Value(:)),col_header,data);
+   [col_header,data] = insert_xls_entry([handles.mag_wall{pos}.Name,' Max'],max(handles.mag_wall{pos}.Value(:)),col_header,data);
+   [col_header,data] = insert_xls_entry([handles.mag_wall{pos}.Name,' Std'],std(handles.mag_wall{pos}.Value(:)),col_header,data);
+end
+
+
+xlswrite([out_name,'.xls'],data,'Sheet1','B2');        %Write data
+xlswrite([out_name,'.xls'],col_header,'Sheet1','B1');  %Write column header
+xlswrite([out_name,'.xls'],row_header,'Sheet1','A2');  %Write row header
+
+function [col_header,data] = insert_xls_entry(name,value,col_header,data)
+col_header{end+1} = name;
+data{end+1} = value;
 
 % --- Executes during object creation, after setting all properties.
 function update_image_CreateFcn(hObject, eventdata, handles)
