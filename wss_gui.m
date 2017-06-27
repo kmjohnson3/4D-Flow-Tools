@@ -24,7 +24,7 @@ function varargout = wss_gui(varargin)
 
 % Edit the above text to modify the response to help wss_gui
 
-% Last Modified by GUIDE v2.5 13-Jun-2017 17:04:48
+% Last Modified by GUIDE v2.5 27-Jun-2017 08:59:03
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -625,13 +625,14 @@ end
 
 
 % Grab magnitude signal
+mag_depth = str2num(get(handles.mag_depth,'String'));
 for mask_pos = 1:numel(handles.MAG)
     for pos=1:size(handles.verts,1)
         if( mod(pos,500)==1)
             disp(['Doing Point ', int2str(pos),' of ',num2str(size(handles.verts,1))]);
         end
         
-        for poly_pos = [-1 0 1]
+        for poly_pos = -1:mag_depth
             py = handles.verts(pos,1)- (poly_pos)*handles.norms(pos,1);
             px = handles.verts(pos,2)- (poly_pos)*handles.norms(pos,2);
             pz = handles.verts(pos,3)- (poly_pos)*handles.norms(pos,3);
@@ -1277,6 +1278,29 @@ function volume_thresh_Callback(hObject, eventdata, handles)
 % --- Executes during object creation, after setting all properties.
 function volume_thresh_CreateFcn(hObject, eventdata, handles)
 % hObject    handle to volume_thresh (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function mag_depth_Callback(hObject, eventdata, handles)
+% hObject    handle to mag_depth (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of mag_depth as text
+%        str2double(get(hObject,'String')) returns contents of mag_depth as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function mag_depth_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to mag_depth (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
