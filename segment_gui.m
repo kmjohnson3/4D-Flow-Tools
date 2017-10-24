@@ -1697,7 +1697,7 @@ if tframes ~= 0
             update_log_message(handles,['Mapping Frame ',int2str(time+1),' of ',int2str(tframes)]);
         end
         
-        if tframes ==3
+        if tframes == 1
             vx_name =fullfile(base_dir,'comp_vd_1.dat');
             vy_name =fullfile(base_dir,'comp_vd_2.dat');
             vz_name =fullfile(base_dir,'comp_vd_3.dat');

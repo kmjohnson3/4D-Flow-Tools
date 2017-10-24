@@ -1016,7 +1016,7 @@ O_dicom
 U_pcvipr
 O_pcvipr
 
-[yt xt] = meshgrid(0:rcxres-1,0:rcyres-1);
+[yt xt] = meshgrid(0:rcyres-1,0:rcxres-1);
 
 RIMAGE = zeros(rcxres,rcyres,rczres);
 

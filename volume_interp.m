@@ -19,21 +19,23 @@ mdx = (1 - dx).*double(1-MASK(:));
 mdy = (1 - dy).*double(1-MASK(:));
 mdz = (1 - dz).*double(1-MASK(:));
 
+MAGs = [size(MAG,2) size(MAG,1) size(MAG,3)];
+
 mag_slice=zeros(IM_SZ);
-idx = sub2ind(size(MAG),XF,YF,ZF);
+idx = sub2ind(MAGs,XF,YF,ZF);
 mag_slice(:)= mag_slice(:)+  mdy.*mdx.*mdz.*MAG(idx(:));
-idx = sub2ind(size(MAG),XF,YF+1,ZF);
+idx = sub2ind(MAGs,XF,YF+1,ZF);
 mag_slice(:)= mag_slice(:)+  mdx.*dy.*mdz.*MAG(idx(:));
-idx = sub2ind(size(MAG),XF+1,YF,ZF);
+idx = sub2ind(MAGs,XF+1,YF,ZF);
 mag_slice(:)= mag_slice(:)+  dx.*mdy.*mdz.*MAG(idx(:));
-idx = sub2ind(size(MAG),XF+1,YF+1,ZF);
+idx = sub2ind(MAGs,XF+1,YF+1,ZF);
 mag_slice(:)= mag_slice(:)+  dx.*dy.*mdz.*MAG(idx(:));
-idx = sub2ind(size(MAG),XF,YF,ZF+1);
+idx = sub2ind(MAGs,XF,YF,ZF+1);
 mag_slice(:)= mag_slice(:)+  mdx.*mdy.*dz.*MAG(idx(:));
-idx = sub2ind(size(MAG),XF,YF+1,ZF+1);
+idx = sub2ind(MAGs,XF,YF+1,ZF+1);
 mag_slice(:)= mag_slice(:)+  mdx.*dy.*dz.*MAG(idx(:));
-idx = sub2ind(size(MAG),XF+1,YF,ZF+1);
+idx = sub2ind(MAGs,XF+1,YF,ZF+1);
 mag_slice(:)= mag_slice(:)+  dx.*mdy.*dz.*MAG(idx(:));
-idx = sub2ind(size(MAG),XF+1,YF+1,ZF+1);
+idx = sub2ind(MAGs,XF+1,YF+1,ZF+1);
 mag_slice(:)= mag_slice(:)+  dx.*dy.*dz.*MAG(idx(:));
 
