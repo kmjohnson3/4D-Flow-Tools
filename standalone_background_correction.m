@@ -1,7 +1,7 @@
 clear 
 clc
 
-rcxres = 448;
+rcxres = 384;
 rcyres = 384;
 rczres = 384;
 
@@ -54,24 +54,29 @@ for slice = 1: size(ANGIO,3)
     
 end
 
-new_dir = fullfile(base_dir,'CORRECTED');
+
+new_dir = fullfile(base_dir,'CORRECTED2');
 mkdir(new_dir);
 
+MAG2 = MAG.Data.vals;
+fid = fopen(fullfile(new_dir,'MAG.dat'),'w');
+fwrite(fid,MAG2,'short');
+fclose(fid);
+
 fid = fopen(fullfile(new_dir,'CD.dat'),'w');
-fwrite(fid,ANGIO,'float');
+fwrite(fid,ANGIO,'short');
 fclose(fid);
 
-fid = fopen(fullfile(new_dir,vx_name),'w');
-fwrite(fid,Vx,'float');
-fclose(fid);
+fid = fopen(fullfile(new_dir,'comp_vd_1.dat'),'w'); fwrite(fid,Vx,'short'); fclose(fid);
+fid = fopen(fullfile(new_dir,'comp_vd_2.dat'),'w'); fwrite(fid,Vy,'short'); fclose(fid);
+fid = fopen(fullfile(new_dir,'comp_vd_3.dat'),'w'); fwrite(fid,Vz,'short'); fclose(fid);
+fid = fopen(fullfile(new_dir,'ph_000_vd_1.dat'),'w'); fwrite(fid,Vx,'short'); fclose(fid);
+fid = fopen(fullfile(new_dir,'ph_000_vd_2.dat'),'w'); fwrite(fid,Vy,'short'); fclose(fid);
+fid = fopen(fullfile(new_dir,'ph_000_vd_3.dat'),'w'); fwrite(fid,Vz,'short'); fclose(fid);
+fid = fopen(fullfile(new_dir,'ph_000_cd.dat'),'w'); fwrite(fid,ANGIO,'short'); fclose(fid);
+MAG2 = MAG.Data.vals;
+fid = fopen(fullfile(new_dir,'ph_000_mag.dat'),'w'); fwrite(fid,MAG2,'short'); fclose(fid);
 
-fid = fopen(fullfile(new_dir,vy_name),'w');
-fwrite(fid,Vy,'float');
-fclose(fid);
-
-fid = fopen(fullfile(new_dir,vz_name),'w');
-fwrite(fid,Vz,'float');
-fclose(fid);
 
 
 imshow(max(ANGIO(:,:,128:end-128),[],3),[])

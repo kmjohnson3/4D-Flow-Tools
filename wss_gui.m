@@ -61,6 +61,8 @@ handles.output = hObject;
 if numel(varargin)==0
     [wss_file,pathname] = uigetfile({'*.mat'},'Select WSS Input File');
     load(fullfile(pathname,wss_file));
+    
+    set(handles.box_filename,'String',wss_file);
 else
     save('WSS_Input.mat','varargin');
 end
@@ -412,7 +414,17 @@ elseif handles.mask_type_key(normal_type) == 1
     isonormals(handles.MAG{handles.mask_type_pos(normal_type)}.Volume,handles.hpatch_wall)
 end
 
+if handles.mask_type_key(normal_type) == 2  
+    disp('Computing STL vertex normals');
+    mask_type = get(handles.mask_type,'Value');
+    [vn]=patchnormals(handles.STL_MASK{handles.mask_type_pos(mask_type)});
+    
+    set(handles.hpatch_wall,'VertexNormals',vn);
+    size(vn)
+end
+   
 norms = (get(handles.hpatch_wall,'VertexNormals'));
+    size(norms)
 verts = (get(handles.hpatch_wall,'Vertices'));
 
 % Normalize the normals
@@ -440,6 +452,26 @@ handles.norms = norms;
 
 % Update handles structure
 guidata(hObject, handles);
+
+
+function N = patchnormals(FV) 
+%Vertex normals of a triangulated mesh, area weighted, left-hand-rule 
+% N = patchnormals(FV) -struct with fields, faces Nx3 and vertices Mx3 
+%N: vertex normals as Mx3
+%face corners index 
+A = FV.faces(:,1); 
+B = FV.faces(:,2); 
+C = FV.faces(:,3);
+%face normals 
+n = cross(FV.vertices(A,:)-FV.vertices(B,:),FV.vertices(C,:)-FV.vertices(A,:)); %area weighted
+%vertice normals 
+N = zeros(size(FV.vertices)); %init vertix normals 
+for i = 1:size(FV.faces,1) %step through faces (a vertex can be reference any number of times) 
+N(A(i),:) = N(A(i),:)+n(i,:); %sum face normals 
+N(B(i),:) = N(B(i),:)+n(i,:); 
+N(C(i),:) = N(C(i),:)+n(i,:); 
+end
+
 
 function viscosity_value_Callback(hObject, eventdata, handles)
 % hObject    handle to viscosity_value (see GCBO)
@@ -510,6 +542,9 @@ for time = 1:size(handles.VXt,4)
             vy_wss(pos,poly_pos) = lin3dt(handles.VYt,time,px,py,pz);
             vz_wss(pos,poly_pos) = lin3dt(handles.VZt,time,px,py,pz);
         end
+        vx_wss(pos,1) = 0;
+        vy_wss(pos,1) = 0;
+        vz_wss(pos,1) = 0;
     end
     
     %%%%%%%%%NOW GET WSS%%%%%%%%
@@ -591,6 +626,10 @@ for pos=1:size(handles.verts,1)
         vy_wss(pos,poly_pos) = lin3d(handles.VY,px,py,pz);
         vz_wss(pos,poly_pos) = lin3d(handles.VZ,px,py,pz);
     end
+    
+    vx_wss(pos,1) = 0;
+    vy_wss(pos,1) = 0;
+    vz_wss(pos,1) = 0;
 end
 
 %%%%%%%%%NOW GET WSS%%%%%%%%
@@ -617,6 +656,7 @@ for pos=1:size(handles.verts,1)
     vwall = [vxwall vywall vzwall]; %- (sum([vxwall vywall vzwall].*[norm(pos,2) norm(pos,1) norm(3,pos)]))*[norm(pos,2) norm(pos,1) norm(3,pos)]
     normal= [handles.norms(pos,2) handles.norms(pos,1) handles.norms(pos,3)];
     
+    % Dahan says to fix this so the direction is correct
     vtwall = cross(vwall,normal);
     vtplus = cross(vplus,normal);
     

@@ -1679,12 +1679,26 @@ vy_name =fullfile(base_dir,'comp_vd_2.dat');
 vz_name =fullfile(base_dir,'comp_vd_3.dat');
 mag_name = fullfile(base_dir,'MAG.dat');
 
+
+
+s=dir(vx_name)
+bytes_per=s.bytes/(rcxres*rcyres*rczres);
+
+
+
 % Memory Maps to VELXmm
 log_message(handles,'Maping time averaged data to memory');
+if bytes_per==2
 VELX = memmapfile(vx_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
 VELY = memmapfile(vy_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
 VELZ = memmapfile(vz_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
 MAG =  memmapfile(mag_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
+else
+   VELX = memmapfile(vx_name,'Format',{'single',[rcxres rcyres rczres],'vals'});
+    VELY = memmapfile(vy_name,'Format',{'single',[rcxres rcyres rczres],'vals'});
+    VELZ = memmapfile(vz_name,'Format',{'single',[rcxres rcyres rczres],'vals'});
+MAG =  memmapfile(mag_name,'Format',{'single',[rcxres rcyres rczres],'vals'}); 
+end
 
 % Map dynamic data to disk
 if tframes ~= 0
@@ -1709,10 +1723,17 @@ if tframes ~= 0
             mag_name = fullfile(base_dir,sprintf('ph_%03d_mag.dat',time));
         end
         
+        if bytes_per == 2
         VELXt{time+1}=memmapfile(vx_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
         VELYt{time+1}=memmapfile(vy_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
         VELZt{time+1}=memmapfile(vz_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
         MAGt{time+1} =memmapfile(mag_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
+        else
+                    VELXt{time+1}=memmapfile(vx_name,'Format',{'single',[rcxres rcyres rczres],'vals'});
+        VELYt{time+1}=memmapfile(vy_name,'Format',{'single',[rcxres rcyres rczres],'vals'});
+        VELZt{time+1}=memmapfile(vz_name,'Format',{'single',[rcxres rcyres rczres],'vals'});
+        MAGt{time+1} =memmapfile(mag_name,'Format',{'single',[rcxres rcyres rczres],'vals'});
+        end
     end
 end
 pc_data_loaded = 1;
