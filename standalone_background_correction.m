@@ -1,82 +1,85 @@
-clear 
-clc
+function standalone_background_correction(varargin)
+% function standalone_background_correction
+% 
+%   Usage: standalone_background_correction(base_dir)
+%          standalone_background_correction(base_dir, 'fitonly')
+%          standalone_background_correction(base_dir, 'writeonly')
+%
+% standalone_background_correction
+% corrects PCVIPR 4D Flow Data for background phase offsets
+%
+% Written by Kevin Johnson
+% Updated by Phil Corrado June 2018 to be faster by correcting all slices
+% at once
 
-rcxres = 384;
-rcyres = 384;
-rczres = 384;
+    if nargin>0 && exist(varargin{1}, 'dir')
+        base_dir = varargin{1};
+    else
+        base_dir = uigetdir();
+    end
+    data = readPCVIPR(base_dir);
 
-base_dir = uigetdir();
+    vx_name =fullfile(base_dir,'comp_vd_1.dat');
+    vy_name =fullfile(base_dir,'comp_vd_2.dat');
+    vz_name =fullfile(base_dir,'comp_vd_3.dat');
+    mag_name = fullfile(base_dir,'MAG.dat');
 
-% Names of file
-vx_name =fullfile(base_dir,'comp_vd_1.dat');
-vy_name =fullfile(base_dir,'comp_vd_2.dat');
-vz_name =fullfile(base_dir,'comp_vd_3.dat');
-mag_name = fullfile(base_dir,'MAG.dat');
+    VELX = memmapfile(vx_name,'Format',{'int16',[data.xSize data.ySize data.zSize],'vals'});
+    VELY = memmapfile(vy_name,'Format',{'int16',[data.xSize data.ySize data.zSize],'vals'});
+    VELZ = memmapfile(vz_name,'Format',{'int16',[data.xSize data.ySize data.zSize],'vals'});
+    MAG =  memmapfile(mag_name,'Format',{'int16',[data.xSize data.ySize data.zSize],'vals'});
+        
+    if nargin <2 || ~ischar(varargin{2}) || ~strcmp(varargin{2},'writeonly')
+        [poly_fitx,poly_fity, poly_fitz] = background_phase_correction(MAG,VELX,VELY,VELZ);
+    else 
+        data = readPCVIPR(base_dir);
+        a = load(fullfile(base_dir,'bgPhaseFitCoefficients.mat'));
+        poly_fitx = a.poly_fitx;
+        poly_fity = a.poly_fity;
+        poly_fitz = a.poly_fitz;
+    end
 
-VELX = memmapfile(vx_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
-VELY = memmapfile(vy_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
-VELZ = memmapfile(vz_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
-MAG =  memmapfile(mag_name,'Format',{'int16',[rcxres rcyres rczres],'vals'});
+    if nargin <2 || ~ischar(varargin{2}) || ~strcmp(varargin{2},'fitonly')
+        xrange = single( linspace(-1,1,data.xSize) );
+        yrange = single( linspace(-1,1,data.ySize) );
+        zrange = single( linspace(-1,1,data.zSize) );
 
-[poly_fitx,poly_fity, poly_fitz] = background_phase_correction(MAG,VELX,VELY,VELZ);
+        [y,x,z] = ndgrid(yrange,xrange,zrange);
 
+        new_dir = fullfile(base_dir,'CORRECTED');
+        mkdir(new_dir);
 
-ANGIO = single(zeros(size(VELX.Data.vals)));
-Vx = single(zeros(size(VELX.Data.vals)));
-Vy = single(zeros(size(VELX.Data.vals)));
-Vz = single(zeros(size(VELX.Data.vals)));
+        fid = fopen(fullfile(new_dir,'comp_vd_1.dat'),'w');
+        fwrite(fid,double(VELX.Data.vals) - evaluate_poly(x,y,z,poly_fitx),'int16');
+        fclose(fid);
 
-xrange = single( linspace(-1,1,size(VELX.Data.vals,1)) );
-yrange = single( linspace(-1,1,size(VELY.Data.vals,2)) );
-zrange = single( linspace(-1,1,size(VELZ.Data.vals,3)) );
+        fid = fopen(fullfile(new_dir,'comp_vd_2.dat'),'w');
+        fwrite(fid,double(VELY.Data.vals) - evaluate_poly(x,y,z,poly_fity),'int16');
+        fclose(fid);
 
-VENC = 600;
+        fid = fopen(fullfile(new_dir,'comp_vd_3.dat'),'w');
+        fwrite(fid,double(VELZ.Data.vals) - evaluate_poly(x,y,z,poly_fitz),'int16');
+        fclose(fid);
 
-[y,x] = meshgrid(yrange,xrange);
-for slice = 1: size(ANGIO,3)
-    
-    
-    vx_slice = single(VELX.Data.vals(:,:,slice) );
-    vy_slice = single(VELY.Data.vals(:,:,slice) );
-    vz_slice = single(VELZ.Data.vals(:,:,slice) );
-    mag_slice= single(MAG.Data.vals(:,:,slice) );
-    
-    
-        z = zrange(slice);
-        vx_slice = vx_slice - evaluate_poly(x,y,z,poly_fitx);
-        vy_slice = vy_slice - evaluate_poly(x,y,z,poly_fity);
-        vz_slice = vz_slice - evaluate_poly(x,y,z,poly_fitz);
-    vmag =sqrt(vx_slice.^2 + vy_slice.^2 + + vz_slice.^2);
-    ANGIO(:,:,slice)= mag_slice.*sin( pi/2 * vmag/VENC);
-    Vx(:,:,slice) = vx_slice;
-    Vy(:,:,slice) = vy_slice;
-    Vz(:,:,slice) = vz_slice;
-    
+        copyfile(fullfile(base_dir,'pcvipr_header.txt'),fullfile(new_dir,'pcvipr_header.txt'));
+
+        for ii = 1:data.nT
+            copyfile(fullfile(base_dir,sprintf('ph_%.3d_mag.dat',ii-1)),fullfile(new_dir,sprintf('ph_%.3d_mag.dat',ii-1)));
+            copyfile(fullfile(base_dir,sprintf('ph_%.3d_cd.dat',ii-1)),fullfile(new_dir,sprintf('ph_%.3d_cd.dat',ii-1)));
+
+            fid = fopen(fullfile(new_dir,sprintf('ph_%.3d_vd_1.dat',ii-1)),'w');
+            fwrite(fid,double(data.velX(:,:,:,ii)) - evaluate_poly(x,y,z,poly_fitx),'int16');
+            fclose(fid);
+
+            fid = fopen(fullfile(new_dir,sprintf('ph_%.3d_vd_2.dat',ii-1)),'w');
+            fwrite(fid,double(data.velY(:,:,:,ii)) - evaluate_poly(x,y,z,poly_fity),'int16');
+            fclose(fid);
+
+            fid = fopen(fullfile(new_dir,sprintf('ph_%.3d_vd_3.dat',ii-1)),'w');
+            fwrite(fid,double(data.velZ(:,:,:,ii)) - evaluate_poly(x,y,z,poly_fitz),'int16');
+            fclose(fid);
+        end
+    else
+        save(fullfile(base_dir,'bgPhaseFitCoefficients.mat'),'poly_fitx','poly_fity','poly_fitz');
+    end
 end
-
-
-new_dir = fullfile(base_dir,'CORRECTED2');
-mkdir(new_dir);
-
-MAG2 = MAG.Data.vals;
-fid = fopen(fullfile(new_dir,'MAG.dat'),'w');
-fwrite(fid,MAG2,'short');
-fclose(fid);
-
-fid = fopen(fullfile(new_dir,'CD.dat'),'w');
-fwrite(fid,ANGIO,'short');
-fclose(fid);
-
-fid = fopen(fullfile(new_dir,'comp_vd_1.dat'),'w'); fwrite(fid,Vx,'short'); fclose(fid);
-fid = fopen(fullfile(new_dir,'comp_vd_2.dat'),'w'); fwrite(fid,Vy,'short'); fclose(fid);
-fid = fopen(fullfile(new_dir,'comp_vd_3.dat'),'w'); fwrite(fid,Vz,'short'); fclose(fid);
-fid = fopen(fullfile(new_dir,'ph_000_vd_1.dat'),'w'); fwrite(fid,Vx,'short'); fclose(fid);
-fid = fopen(fullfile(new_dir,'ph_000_vd_2.dat'),'w'); fwrite(fid,Vy,'short'); fclose(fid);
-fid = fopen(fullfile(new_dir,'ph_000_vd_3.dat'),'w'); fwrite(fid,Vz,'short'); fclose(fid);
-fid = fopen(fullfile(new_dir,'ph_000_cd.dat'),'w'); fwrite(fid,ANGIO,'short'); fclose(fid);
-MAG2 = MAG.Data.vals;
-fid = fopen(fullfile(new_dir,'ph_000_mag.dat'),'w'); fwrite(fid,MAG2,'short'); fclose(fid);
-
-
-
-imshow(max(ANGIO(:,:,128:end-128),[],3),[])

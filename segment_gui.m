@@ -847,7 +847,7 @@ for slice = 1: size(ANGIO,3)
         vz_slice = vz_slice - evaluate_poly(x,y,z,poly_fitz);
     end
     vmag =sqrt(vx_slice.^2 + vy_slice.^2 + + vz_slice.^2);
-    ANGIO(:,:,slice)= mag_slice.*sin( pi/2 * vmag/VENC);
+    ANGIO(:,:,slice)= mag_slice.*sin( pi/2 * vmag/VENC/2);
 end
 log_message(handles,'Angio Done');
 
@@ -2091,7 +2091,10 @@ fprintf(fidCase,'GEOMETRY\n');
 fprintf(fidCase,'model:	 %s\n',geoFileName);
 fprintf(fidCase,'VARIABLE\n');
 fprintf(fidCase,'scalar per node:	 Magnitude	 %s.mag\n',dataFileName );
-fprintf(fidCase,'scalar per node:	 ComplexDifference	 %s.cd\n',dataFileName );
+fprintf(fidCase,'scalar per node:	 Speed_SumSquares	 %s.cd\n',dataFileName );
+fprintf(fidCase,'scalar per node:	 Speed_MeanAbsVel	 %s.cd\n',dataFileName );
+fprintf(fidCase,'scalar per node:	 Speed_PseudoComplDiff	 %s.cd\n',dataFileName );
+
 for pos =1:numel(extra_volumes)
     fprintf(fidCase,['scalar per node:	 ',extra_volumes{pos}.name,' %s.',extra_volumes{pos}.name,'\n'],dataFileName );
 end
@@ -2118,7 +2121,6 @@ if grad_export_flag ==1
     fprintf(fidCase,'vector per node:	 P_Gradient	 %s**.pgrad\n',dataFileName );
 end
 fprintf(fidCase,'vector per node:	 Velocity	 %s**.vel\n',dataFileName );
-fprintf(fidCase,'vector per node:	 AvgVelocity	 %s.avgvel\n',dataFileName );
 fprintf(fidCase,'TIME\n');
 fprintf(fidCase,'time set:		 1\n');
 fprintf(fidCase,'number of steps:	 %s\n',num2str(tframes));
@@ -2126,9 +2128,9 @@ fprintf(fidCase,'filename start number:	 0\n');
 fprintf(fidCase,'filename increment:	 1\n');
 fprintf(fidCase,'time values:\n');
 if tres==0
-    fprintf(fidCase,'%.3f\n',(1:tframes));
+    fprintf(fidCase,'%4d\n',0);
 else
-    fprintf(fidCase,'%.3f\n',(1:tframes)*tres);
+    fprintf(fidCase,'%4d\n',(1:tframes)*round(tres*1000));
 end
 fclose(fidCase); % close file
 % end generate case file
@@ -2471,7 +2473,7 @@ for phase = 1:tframes
     fclose('all');
     
 end; % end phase loop
-
+log_message(handles,'Done.');
 
 
 % --- Executes on selection change in export_variable_list.
