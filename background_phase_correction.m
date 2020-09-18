@@ -448,24 +448,18 @@ function [poly_fitx,poly_fity,poly_fitz ] =  polyfit_3D(MAG,VX,VY,VZ,fit_order,c
 
 VENC = 1000;
 Mask = int8(zeros(size(MAG.Data.vals)));
+CD = single(MAG.Data.vals).*sin(sqrt(single(VX.Data.vals.^2 + VY.Data.vals.^2 + + VZ.Data.vals.^2))/VENC*pi/2);
 max_MAG = max(MAG.Data.vals(:));
+max_CD = max(CD(:));
 
 % Create angiogram
 for slice = 1:size(Mask,3)
     
     % Grab a slice
-    mag_slice= single( MAG.Data.vals(:,:,slice));
-    vx_slice = single(VX.Data.vals(:,:,slice));
-    vy_slice = single(VY.Data.vals(:,:,slice));
-    vz_slice = single(VZ.Data.vals(:,:,slice));
-    
-%     [y,x,z] = meshgrid( handles.xrange,handles.yrange,handles.zrange(slice) );    
-%     vx_slice = vx_slice - evaluate_poly(x,y,z,handles.poly_vals{1},handles.px,handles.py,handles.pz);
-%     vy_slice = vy_slice - evaluate_poly(x,y,z,handles.poly_vals{2},handles.px,handles.py,handles.pz);
-%     vz_slice = vz_slice - evaluate_poly(x,y,z,handles.poly_vals{3},handles.px,handles.py,handles.pz);
+    mag_slice = single( MAG.Data.vals(:,:,slice));
+    cd_slice = single(CD(:,:,slice));
 
-    CD = sqrt(vx_slice.^2 + vy_slice.^2 + + vz_slice.^2);
-    Mask(:,:,slice) = ( mag_slice > noise_thresh*max_MAG) .* ( CD < cd_thresh*VENC);
+    Mask(:,:,slice) = ( mag_slice > noise_thresh*max_MAG) .* ( cd_slice < cd_thresh*max_CD);
 end
 
 

@@ -188,6 +188,7 @@ function convertButton_Callback(hObject, eventdata, handles)
 dicom_filename = get(handles.dicomName,'String');
 dcm_header =  dicominfo(dicom_filename);
 
+dcm_header.ImageOrientationPatient = [1 0 0; 0 1 0];
 jpg_folder = get(handles.jpgFolder,'String');
 dcm_header
 jpg_files = dir(fullfile(jpg_folder,'*.jpg'))

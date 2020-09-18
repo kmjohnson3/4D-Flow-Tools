@@ -847,7 +847,7 @@ for slice = 1: size(ANGIO,3)
         vz_slice = vz_slice - evaluate_poly(x,y,z,poly_fitz);
     end
     vmag =sqrt(vx_slice.^2 + vy_slice.^2 + + vz_slice.^2);
-    ANGIO(:,:,slice)= mag_slice.*sin( pi/2 * vmag/VENC);
+    ANGIO(:,:,slice)= mag_slice.*sin( pi/2 * vmag/VENC/2);
 end
 log_message(handles,'Angio Done');
 
@@ -2001,6 +2001,8 @@ global plist;
 global mask_num;
 global mask_names;
 global VENC;
+global U_pcvipr;
+global O_pcvipr;
 
 %Masking parameters
 global m_alpha;
@@ -2051,6 +2053,9 @@ par.stopY = m_ystop;
 par.stopZ = m_zstop;
 save(fullfile(base_dir,'crop_parameters.mat'),'par');
 
+parts = struct();
+
+parts = chooseDialog(parts);
 
 cine_anatomy_flag = get(handles.cine_anatomy_checkbox,'Value');
 global pressure_flag;
@@ -2091,7 +2096,16 @@ fprintf(fidCase,'GEOMETRY\n');
 fprintf(fidCase,'model:	 %s\n',geoFileName);
 fprintf(fidCase,'VARIABLE\n');
 fprintf(fidCase,'scalar per node:	 Magnitude	 %s.mag\n',dataFileName );
-fprintf(fidCase,'scalar per node:	 ComplexDifference	 %s.cd\n',dataFileName );
+fprintf(fidCase,'scalar per node:	 Speed_SumSquares	 %s.cd\n',dataFileName );
+fprintf(fidCase,'scalar per node:	 Speed_MeanAbsVel	 %s.cd\n',dataFileName );
+fprintf(fidCase,'scalar per node:	 Speed_PseudoComplDiff	 %s.cd\n',dataFileName );
+
+if numel(parts)>1
+    for partNum = 2:numel(parts)
+        fprintf(fidCase,'scalar per node:     part_%.2i   %s**.%s\n',partNum, dataFileName, sprintf('%.2i',partNum));
+    end
+end
+
 for pos =1:numel(extra_volumes)
     fprintf(fidCase,['scalar per node:	 ',extra_volumes{pos}.name,' %s.',extra_volumes{pos}.name,'\n'],dataFileName );
 end
@@ -2118,7 +2132,6 @@ if grad_export_flag ==1
     fprintf(fidCase,'vector per node:	 P_Gradient	 %s**.pgrad\n',dataFileName );
 end
 fprintf(fidCase,'vector per node:	 Velocity	 %s**.vel\n',dataFileName );
-fprintf(fidCase,'vector per node:	 AvgVelocity	 %s.avgvel\n',dataFileName );
 fprintf(fidCase,'TIME\n');
 fprintf(fidCase,'time set:		 1\n');
 fprintf(fidCase,'number of steps:	 %s\n',num2str(tframes));
@@ -2126,9 +2139,9 @@ fprintf(fidCase,'filename start number:	 0\n');
 fprintf(fidCase,'filename increment:	 1\n');
 fprintf(fidCase,'time values:\n');
 if tres==0
-    fprintf(fidCase,'%.3f\n',(1:tframes));
+    fprintf(fidCase,'%4d\n',0);
 else
-    fprintf(fidCase,'%.3f\n',(1:tframes)*tres);
+    fprintf(fidCase,'%4d\n',(1:tframes)*round(tres*1000));
 end
 fclose(fidCase); % close file
 % end generate case file
@@ -2139,8 +2152,6 @@ fclose(fidCase); % close file
 % ------------------------------------------------
 % open binary file an write data
 fidGeo  = fopen(fullfile(ensightDirPath,geoPathName), 'w', 'ieee-be');
-matSize = szx * szy;
-part    = 1;
 
 % generate and write header
 geoheaderStr(1:8) = 'C Binary';
@@ -2157,6 +2168,10 @@ geoheaderStr(15:80) = ' ';
 fwrite(fidGeo,geoheaderStr,'char');
 geoheaderStr(1:17) = 'element id assign';
 geoheaderStr(18:80) = ' ';
+
+
+part = 1;
+    
 fwrite(fidGeo,geoheaderStr,'char');
 geoheaderStr(1:4) = 'part';
 geoheaderStr(5:80) = ' ';
@@ -2180,12 +2195,48 @@ fwrite(fidGeo,numSlices,'int');
 fwrite(fidGeo,Xcor,'float'); % x-coordinate
 fwrite(fidGeo,Ycor,'float'); % y-coordinate
 fwrite(fidGeo,Zcor,'float'); % z-coordinate
+
+clear Xcor Ycor Zcor;
+
+if numel(parts)>1
+    for partNum = 2:numel(parts)
+        geoheaderStr(1:4) = 'part';
+        geoheaderStr(5:80) = ' ';
+        fwrite(fidGeo,geoheaderStr,'char');
+        fwrite(fidGeo,partNum,'int');
+        geoheaderStr(1:7) = sprintf('part_%.2i',partNum);
+        geoheaderStr(8:80) = ' ';
+        fwrite(fidGeo,geoheaderStr,'char');
+        geoheaderStr(1:5) = 'block';
+        geoheaderStr(6:80) = ' ';
+        fwrite(fidGeo,geoheaderStr,'char');
+        
+        fwrite(fidGeo,parts(partNum).ySize,'int');
+        fwrite(fidGeo,parts(partNum).xSize,'int');
+        fwrite(fidGeo,parts(partNum).zSize,'int');
+        
+        [y,x,z] = meshgrid(1:parts(partNum).ySize,1:parts(partNum).xSize,1:parts(partNum).zSize);
+        x = x(:);
+        y = y(:);
+        z = z(:);
+        
+        rl = (x(:)-1).*parts(partNum).spacing(1).*parts(partNum).orientation(1)+(y(:)-1).*parts(partNum).spacing(2).*parts(partNum).orientation(4)+(z(:)-1).*parts(partNum).spacing(3).*parts(partNum).orientation(7)+parts(partNum).position(1);
+        ap = (x(:)-1).*parts(partNum).spacing(1).*parts(partNum).orientation(2)+(y(:)-1).*parts(partNum).spacing(2).*parts(partNum).orientation(5)+(z(:)-1).*parts(partNum).spacing(3).*parts(partNum).orientation(8)+parts(partNum).position(2);
+        fh = (x(:)-1).*parts(partNum).spacing(1).*parts(partNum).orientation(3)+(y(:)-1).*parts(partNum).spacing(2).*parts(partNum).orientation(6)+(z(:)-1).*parts(partNum).spacing(3).*parts(partNum).orientation(9)+parts(partNum).position(3);
+        
+        Xcor = (rl(:)-O_pcvipr(1)).*U_pcvipr(1,1)./delX + (ap(:)-O_pcvipr(2)).*U_pcvipr(2,1)./delX + (fh(:)-O_pcvipr(3)).*U_pcvipr(3,1)./delX -m_xstart;
+        Ycor = (rl(:)-O_pcvipr(1)).*U_pcvipr(1,2)./delY + (ap(:)-O_pcvipr(2)).*U_pcvipr(2,2)./delY + (fh(:)-O_pcvipr(3)).*U_pcvipr(3,2)./delY -m_ystart;
+        Zcor = (rl(:)-O_pcvipr(1)).*U_pcvipr(1,3)./delZ + (ap(:)-O_pcvipr(2)).*U_pcvipr(2,3)./delZ + (fh(:)-O_pcvipr(3)).*U_pcvipr(3,3)./delZ -m_zstart;
+        
+        fwrite(fidGeo,Ycor,'float'); % x-coordinate
+        fwrite(fidGeo,Xcor,'float'); % y-coordinate
+        fwrite(fidGeo,Zcor,'float'); % z-coordinate
+        clear Xcor Ycor Zcor;
+    end
+end
+
 fclose(fidGeo); % close geo file
 % end generate geo file
-
-clear Xcor;
-clear Ycor;
-clear Zcor;
 
 %----------------------------------------------------------------------
 %  Write out files
@@ -2468,10 +2519,33 @@ for phase = 1:tframes
         TEMP = TEMP.*sin( pi/2 * VMAG / VENC);
         fwrite(fidAngioCine,TEMP,'float');
     end
+    
+    
+    if numel(parts)>1
+        for partNum = 2:numel(parts)
+            dataPath2= fullfile(ensightDirPath,(sprintf('%s%s.%s',dataPathName,num2str(phase-1,'%02d'),num2str(partNum,'%02d'))));
+            fid = fopen(dataPath2,'w','ieee-be');
+            [~, szStr]= size(sprintf('%s%s',sprintf('data_%.2i',partNum),num2str(phase-1)));
+            dataheaderStr(1:szStr) = sprintf('%s%s',sprintf('data_%.2i',partNum),num2str(phase-1));
+            dataheaderStr(szStr+1:80) = ' ';
+            fwrite(fid,dataheaderStr,'char');
+            dataheaderStr(1:4) = 'part';
+            dataheaderStr(5:80) = ' ';
+            fwrite(fid,dataheaderStr,'char');
+            fwrite(fid,partNum,'int');
+            geoheaderStr(1:5) = 'block';
+            geoheaderStr(6:80) = ' ';
+            fwrite(fid,geoheaderStr,'char');
+            
+            ind = (1:(parts(partNum).xSize*parts(partNum).ySize*parts(partNum).zSize)) + (phase-1)*parts(partNum).xSize*parts(partNum).ySize*parts(partNum).zSize;
+            fwrite(fid,single(parts(partNum).data(ind)),'float');
+            fclose(fid);
+        end
+    end
     fclose('all');
     
-end; % end phase loop
-
+end % end phase loop
+log_message(handles,'Done.');
 
 
 % --- Executes on selection change in export_variable_list.
@@ -2546,4 +2620,53 @@ end
 
 update_export_variables(handles);
 
+function parts = chooseDialog(parts)
+answer = questdlg(sprintf('Number of image sets (in addition to 4D flow) = %i, would you like to add another?',numel(parts)-1), ...
+	'Add anatomical images?','Yes','No', 'No');
+if strcmp(answer,'Yes')
+        parts = yes_popup_callback(parts);
+end
 
+
+function parts = yes_popup_callback(parts)
+partNum = numel(parts)+1;
+
+srcDir = uigetdir('Select Dicom-containing directory.');
+dirContents = dir(fullfile(srcDir,"*.dcm"));
+
+counter = 1;
+for contentsIndex = 1:length(dirContents)
+    dicomFilePath = fullfile(dirContents(contentsIndex).folder, dirContents(contentsIndex).name);
+    info = dicominfo(dicomFilePath);
+    if counter==1
+        parts(partNum).xSize = double(info.Height);
+        parts(partNum).ySize = double(info.Width);
+        parts(partNum).position = double(info.ImagePositionPatient);
+        R = double(info.ImageOrientationPatient);
+        if isfield(info,'SpacingBetweenSlices')
+            parts(partNum).spacing = double([info.PixelSpacing',info.SpacingBetweenSlices]);
+        else
+            parts(partNum).spacing = double([info.PixelSpacing',info.SliceThickness]);
+        end
+        if isfield(info,'CardiacNumberOfImages')
+            parts(partNum).nT = max(1,double(info.CardiacNumberOfImages));
+        else
+            parts(partNum).nT = max(1,double(info.NumberOfTimeSlices));
+        end
+    end
+    img(:,:,floor((counter-1)/parts(partNum).nT)+1,mod(counter-1,parts(partNum).nT)+1) = single(dicomread(dicomFilePath))'; %#ok<AGROW>
+    counter = counter+1;
+end
+parts(partNum).data = int16(img.*(2^15)./max(img(:)));
+parts(partNum).zSize = (counter-1)/parts(partNum).nT;
+
+lastPos = double(info.ImagePositionPatient);
+if ~all(lastPos-parts(partNum).position==[0;0;0])
+    R(7:9) = (lastPos-p)./(parts(partNum).zSize-1)./parts(partNum).spacing(3);
+else
+    R(7:9) = cross(R(1:3),R(4:6));
+end
+parts(partNum).orientation = reshape(R, [3,3]);
+parts = chooseDialog(parts);
+
+     
